@@ -1,0 +1,49 @@
+################################################
+##Description : This script will analyse the Methode deployment log files in shared path and provide the Total, Success, Failed counts & Failed machines details
+##Author : Gobalakrishnan M
+##Date : 25/07/2022
+################################################
+
+#!/bin/bash
+
+cd /path
+find -newermt "1 day ago" >> /var/tmp/with_symbol.txt
+sed -e 's/[./ ]/ /g;s/  */ /g' /var/tmp/with_symbol.txt > /var/tmp/remove.txt
+sed '1d' /var/tmp/remove.txt > /var/tmp/output.txt
+#for f in *.*; do echo ${f%.*} >> /var/tmp/output.txt; done;
+grep "Success" /var/tmp/output.txt >> /var/tmp/Success.txt
+grep -v "Success" /var/tmp/output.txt >> /var/tmp/Failed.txt
+cut -d "_" -f 1 /var/tmp/output.txt >>/var/tmp/Total_Hostnames.txt
+cut -d "_" -f 1 /var/tmp/Failed.txt >>/var/tmp/Failed_Hostnames.txt
+cut -d "_" -f 1 /var/tmp/Success.txt >>/var/tmp/Success_Hostnames.txt
+sort /var/tmp/Total_Hostnames.txt | uniq -i >> /var/tmp/Total_Machines.txt
+sort /var/tmp/Failed_Hostnames.txt | uniq -i >> /var/tmp/Hostnames_failed_Machines.txt
+sort /var/tmp/Success_Hostnames.txt | uniq -i >> /var/tmp/Hostnames_success_Machines.txt
+cd /var/tmp/
+awk 'FNR==NR{a[$1];next};!($1 in a)' Hostnames_success_Machines.txt Hostnames_failed_Machines.txt > Hostnames_failed_Machines_List.txt
+Total_Machines_Count=$(grep -c "" /var/tmp/Total_Machines.txt)
+Failed_Machines_Count=$(grep -c "" /var/tmp/Hostnames_failed_Machines_List.txt )
+Success_Machines_Count=$(grep -c "" /var/tmp/Hostnames_success_Machines.txt)
+echo "Hi Team, " >> /var/tmp/Counts.txt
+echo "                                                                  " >> /var/tmp/Counts.txt
+echo Total machines count : $Total_Machines_Count >> /var/tmp/Counts.txt
+echo "Deployed success machines count : $Success_Machines_Count" >> /var/tmp/Counts.txt
+echo "Deployed failed machines count : $Failed_Machines_Count" >> /var/tmp/Counts.txt
+echo "                                                                  " >> /var/tmp/Counts.txt
+echo "Failed machines Details : " >> /var/tmp/Counts.txt
+echo "----------------------------------" >> /var/tmp/Counts.txt
+
+cp Hostnames_failed_Machines_List.txt Hostnames_failed_Machines_List
+file_name=Hostnames_failed_Machines_List 
+current_time=$(date "+%d_%m_%Y-%H:%M:%S") 
+Failed_Machines_List=$file_name.$current_time 
+cp $file_name $Failed_Machines_List
+
+cat /var/tmp/Counts.txt /var/tmp/$Failed_Machines_List > /var/tmp/Email_Body
+mail -s "Methode Deployment status and failed machines information - $current_time" gopi.m@gmail.com < /var/tmp/Email_Body
+
+rm Success.txt Failed.txt Total_Hostnames.txt Failed_Hostnames.txt Success_Hostnames.txt Total_Machines.txt Hostnames_success_Machines.txt Hostnames_failed_Machines.txt
+rm Hostnames_failed_Machines_List Counts.txt Email_Body with_symbol.txt remove.txt output.txt $Failed_Machines_List Hostnames_failed_Machines_List.txt
+
+
+#END
